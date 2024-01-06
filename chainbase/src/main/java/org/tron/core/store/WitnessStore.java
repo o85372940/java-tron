@@ -1,35 +1,38 @@
 package org.tron.core.store;
 
 import com.google.common.collect.Streams;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.tron.common.cache.CacheManager;
-import org.tron.common.cache.CacheStrategies;
-import org.tron.common.cache.CacheType;
-import org.tron.common.cache.TronCache;
+import org.tron.api.GrpcAPI;
+import org.tron.core.capsule.BytesCapsule;
 import org.tron.core.capsule.WitnessCapsule;
 import org.tron.core.config.Parameter;
 import org.tron.core.db.TronStoreWithRevoking;
+import org.tron.protos.Protocol;
 
 @Slf4j(topic = "DB")
 @Component
 public class WitnessStore extends TronStoreWithRevoking<WitnessCapsule> {
- // cache for 127 SR
-  private final TronCache<Integer, List<WitnessCapsule>> witnessStandbyCache;
+
+  @Autowired
+  private DynamicPropertiesStore dynamicPropertiesStore;
+  private static final byte[] WITNESS_STANDBY_127 =
+      "WITNESS_STANDBY_127".getBytes(StandardCharsets.UTF_8);
 
   @Autowired
   protected WitnessStore(@Value("witness") String dbName) {
     super(dbName);
-    String strategy =  String.format(CacheStrategies.PATTERNS, 1, 1, "30s", 1);
-    witnessStandbyCache = CacheManager.allocate(CacheType.witnessStandby, strategy);
   }
 
   /**
@@ -48,15 +51,21 @@ public class WitnessStore extends TronStoreWithRevoking<WitnessCapsule> {
   }
 
   public List<WitnessCapsule> getWitnessStandby() {
-    List<WitnessCapsule> list =
-        witnessStandbyCache.getIfPresent(Parameter.ChainConstant.WITNESS_STANDBY_LENGTH);
-    if (list != null) {
-      return list;
-    }
-    return updateWitnessStandby(null);
+    return Optional.ofNullable(
+        fromByteArray(dynamicPropertiesStore.getUnchecked(WITNESS_STANDBY_127)))
+        .orElse(calWitnessStandby(null));
+  }
+
+  public List<WitnessCapsule> putWitnessStandby(List<WitnessCapsule> ret) {
+    dynamicPropertiesStore.put(WITNESS_STANDBY_127, toByteArray(ret));
+    return ret;
   }
 
   public List<WitnessCapsule> updateWitnessStandby(List<WitnessCapsule> all) {
+    return putWitnessStandby(calWitnessStandby(all));
+  }
+
+  public List<WitnessCapsule> calWitnessStandby(List<WitnessCapsule> all) {
     List<WitnessCapsule> ret;
     if (all == null) {
       all = getAllWitnesses();
@@ -71,8 +80,29 @@ public class WitnessStore extends TronStoreWithRevoking<WitnessCapsule> {
     }
     // trim voteCount = 0
     ret.removeIf(w -> w.getVoteCount() < 1);
-    witnessStandbyCache.put(Parameter.ChainConstant.WITNESS_STANDBY_LENGTH, ret);
     return ret;
+  }
+
+  private BytesCapsule toByteArray(List<WitnessCapsule> WitnessStandby ) {
+    GrpcAPI.WitnessList witnessList = GrpcAPI.WitnessList.newBuilder().addAllWitnesses(
+        WitnessStandby.stream().map(w -> Protocol.Witness.newBuilder()
+            .setAddress(w.getAddress())
+            .setVoteCount(w.getVoteCount()).build())
+            .collect(Collectors.toList())).build();
+    return new BytesCapsule(witnessList.toByteArray());
+  }
+
+  private List<WitnessCapsule> fromByteArray(BytesCapsule bytes) {
+    if (bytes == null || bytes.getData() == null || bytes.getData().length == 0) {
+      return null;
+    }
+    try {
+      return GrpcAPI.WitnessList.parseFrom(bytes.getData())
+          .getWitnessesList().stream().map(WitnessCapsule::new).collect(Collectors.toList());
+    } catch (InvalidProtocolBufferException e) {
+      logger.warn(e.getMessage(), e);
+    }
+    return null;
   }
 
 }
