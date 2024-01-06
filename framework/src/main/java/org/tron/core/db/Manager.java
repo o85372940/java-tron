@@ -1057,6 +1057,9 @@ public class Manager {
     MetricsUtil.meterMark(MetricsKey.BLOCKCHAIN_FORK_COUNT);
     Metrics.counterInc(MetricKeys.Counter.BLOCK_FORK, 1, MetricLabels.ALL);
 
+    // clear witness standby cache
+    getWitnessStore().getWitnessStandbyCache().invalidateAll();
+
     Pair<LinkedList<KhaosBlock>, LinkedList<KhaosBlock>> binaryTree;
     try {
       binaryTree =

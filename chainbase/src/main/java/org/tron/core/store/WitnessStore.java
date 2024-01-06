@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import org.tron.core.db.TronStoreWithRevoking;
 @Component
 public class WitnessStore extends TronStoreWithRevoking<WitnessCapsule> {
  // cache for 127 SR
+  @Getter
   private final TronCache<Integer, List<WitnessCapsule>> witnessStandbyCache;
 
   @Autowired
