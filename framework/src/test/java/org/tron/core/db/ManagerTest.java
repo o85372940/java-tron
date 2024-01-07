@@ -593,7 +593,7 @@ public class ManagerTest extends BlockGenerate {
     byte[] address2 = ecKey2.getAddress();
     WitnessCapsule sr2 = new WitnessCapsule(
         ByteString.copyFrom(address2), "www.tron.net/second");
-    sr1.setVoteCount(100000L);
+    sr2.setVoteCount(100000L);
     chainManager.getWitnessStore().put(address, sr1);
     WitnessCapsule witnessCapsule = new WitnessCapsule(ByteString.copyFrom(address));
     chainManager.getWitnessScheduleStore().saveActiveWitnesses(new ArrayList<>());
