@@ -1047,6 +1047,11 @@ public class Manager {
     }
   }
 
+  private void clearWitnessStandbyCache() {
+    // clear witness standby cache
+    getWitnessStore().getWitnessStandbyCache().invalidateAll();
+  }
+
   private void switchFork(BlockCapsule newHead)
       throws ValidateSignatureException, ContractValidateException, ContractExeException,
       ValidateScheduleException, AccountResourceInsufficientException, TaposException,
@@ -1057,8 +1062,7 @@ public class Manager {
     MetricsUtil.meterMark(MetricsKey.BLOCKCHAIN_FORK_COUNT);
     Metrics.counterInc(MetricKeys.Counter.BLOCK_FORK, 1, MetricLabels.ALL);
 
-    // clear witness standby cache
-    getWitnessStore().getWitnessStandbyCache().invalidateAll();
+    clearWitnessStandbyCache();
 
     Pair<LinkedList<KhaosBlock>, LinkedList<KhaosBlock>> binaryTree;
     try {
@@ -1120,6 +1124,7 @@ public class Manager {
           if (exception != null) {
             Metrics.counterInc(MetricKeys.Counter.BLOCK_FORK, 1, MetricLabels.FAIL);
             MetricsUtil.meterMark(MetricsKey.BLOCKCHAIN_FAIL_FORK_COUNT);
+            clearWitnessStandbyCache();
             logger.warn("Switch back because exception thrown while switching forks.", exception);
             first.forEach(khaosBlock -> khaosDb.removeBlk(khaosBlock.getBlk().getBlockId()));
             khaosDb.setHead(binaryTree.getValue().peekFirst());
@@ -1148,6 +1153,7 @@ public class Manager {
                   | ValidateScheduleException
                   | ZksnarkException e) {
                 logger.warn(e.getMessage(), e);
+                clearWitnessStandbyCache();
               }
             }
           }
